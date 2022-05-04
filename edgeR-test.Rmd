@@ -1,0 +1,73 @@
+---
+title: "RNAseq-test"
+output: html_document
+date: '2022-04-29'
+---
+
+```{r setup, include=FALSE}
+library(edgeR,dplyr,reader)
+setwd("~/RNAseq/feat/")
+
+x <- list()
+temp = list.files(pattern="*.txt", full.names = TRUE)
+for (i in 1:length(temp)){
+  y <- data.frame(read.delim(temp[i], skip =1, sep = '\t'))
+  #y <- y[,-(2:6)]
+  x[[i]] <- y
+}
+
+z <- data.frame(x[2])
+#x<- read.delim("1_S1_name-test-count.txt", skip = 1, sep = '\t', row.names = "Geneid")
+
+```
+
+
+
+```{r}
+files <- c( "1_S1_name-test-count.txt", "2_S2-name-count.txt",
+"3_S3-name-count.txt", "4_S4-name-count.txt",
+"5_S5-name-count.txt", "6_S6-name-count.txt",
+"7_S7-name-count.txt", "8_S8-name-count.txt", "9_S9-name-count.txt", "10_S10-name-count.txt")
+new <- c(rep("A",5), rep("B",5))
+fg <- data.frame(files = files, group = new)
+lbs <- paste(new, c("A", "B"), sep = "")
+
+
+d <- readDGE(fg, sep = '\t', columns = c(1,7), header = TRUE, skip = 1)
+#barplot(d$samples$lib.size)
+
+```
+
+```{r}
+keep <- filterByExpr(d)
+d <- d[keep, , keep.lib.sizes=FALSE]
+d <- calcNormFactors(d)
+d <- estimateDisp(d)
+d <- estimateCommonDisp(d)
+d <- estimateTagwiseDisp(d)
+et <- exactTest(d)
+top_pair <- data.frame(topTags(et, n=20))
+top_pair$names <- rownames(top_pair)
+write_csv(top_pair, "top_pair.csv")
+#logcpm <- cpm(d, log=TRUE)
+```
+
+```{r}
+logcpm <- cpm(d,log=TRUE, normalized.lib.sizes = TRUE)
+#use cpm(d$counts) to calculate unnormalized
+boxplot(logcpm, xlab="", ylab="Log2 counts per million",las=2,outline=TRUE)
+abline(h=median(logcpm),col="blue")
+title("Boxplots of logCPMs (normalised)")
+```
+
+```{r}
+plotMD(cpm(d, log=TRUE), column=3)
+abline(h=0, col="red", lty=2, lwd=2)
+```
+
+```{r}
+
+go_glm <- goana(lrt.edgeR, species = "Hs")
+topGO(go_glm, n=10)
+```
+

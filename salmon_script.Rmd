@@ -1,0 +1,46 @@
+---
+title: "salmon-test"
+output: html_document
+date: '2022-05-02'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/RNAseq/salmon/Run2/quants_boot/")
+library(tximport)
+library(tximeta)
+library(ensembldb)
+library(EnsDb.Hsapiens.v86)
+
+## Making a "short cut"
+edb <- ensemblVersion(EnsDb.Hsapiens.v86)
+## print some informations for this package
+edb
+```
+
+```{r}
+s_files <- c(list.dirs(path = ".", full.names = FALSE, recursive = FALSE))
+s <- catchSalmon(paths = s_files)
+
+```
+
+```{r}
+s_dge <- DGEList(counts=s$counts, genes=s$annotation, remove.zeros = TRUE, group = new)
+keep_s <- filterByExpr(s_dge)
+s_dge <- s_dge[keep_s, , keep.lib.sizes=FALSE]
+s_dge <- calcNormFactors(s_dge)
+s_dge <- estimateDisp(s_dge)
+s_dge <- estimateCommonDisp(s_dge)
+s_dge <- estimateTagwiseDisp(s_dge)
+et_s <- exactTest(s_dge)
+top_s <- data.frame(topTags(et_s, n=100))
+top_s$names <- row.names(top_s)
+write.csv(top_s, "top_salmon.csv")
+```
+
+```{r}
+fit_salmon <- glmFit(s_dge, design.mat)
+lrt_salmon <- glmLRT(fit_salmon)
+go_salmon <- goana(lrt_salmon)
+```
+

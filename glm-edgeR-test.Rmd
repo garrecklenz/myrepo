@@ -1,0 +1,57 @@
+---
+title: "mistrm_tutorial"
+output: html_document
+date: '2022-05-02'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r edgeR, fig.align='center'}
+setwd("~/RNAseq/feat/")
+dge <- readDGE(fg, sep = '\t', columns = c(1,7), header = TRUE, skip = 1)
+# Trim no counts
+keep2 <- filterByExpr(dge)
+dge <- dge[keep2, , keep.lib.sizes=FALSE]
+# Normalize by total count
+dge <- calcNormFactors(dge)
+# Create the contrast matrix
+design.mat <- model.matrix(~ 0 + dge$samples$group)
+colnames(design.mat) <- levels(dge$samples$group)
+# Estimate dispersion parameter for GLM
+dge <- estimateGLMCommonDisp(dge, design.mat)
+dge <- estimateGLMTrendedDisp(dge, design.mat, method="power")
+dge<- estimateGLMTagwiseDisp(dge,design.mat)
+
+# Plot mean-variance
+plotBCV(dge)
+
+```
+
+
+```{r}
+p.threshold <- 0.3
+# Model fitting
+fit.edgeR <- glmFit(dge, design.mat)
+# Differential expression
+contrasts.edgeR <- makeContrasts(B - A, levels=design.mat)
+lrt.edgeR <- glmLRT(fit.edgeR, contrast=contrasts.edgeR)
+# Access results tables
+edgeR_results <- lrt.edgeR$table
+p_sort <- edgeR_results[order(edgeR_results$PValue),] 
+p_sort$names <- row.names(p_sort)
+write_csv(p_sort, "top_glm.csv")
+#sig.edgeR <- decideTestsDGE(lrt.edgeR, p.value = p.threshold, lfc = 0)
+#summary(sig.edgeR)
+#genes.edgeR <- row.names(edgeR_results)[which(sig.edgeR != 0)]
+```
+
+```{r}
+fit_test_glm <- glmQLFit(dge, design.mat)
+qlf_glm <- glmQLFTest(fit_test_glm, coef=2)
+go_glm <- goana(lrt.edgeR, species = "Hs")
+topGO(go_glm, n=10)
+```
+
