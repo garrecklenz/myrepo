@@ -5,8 +5,8 @@ date: '2022-04-29'
 ---
 
 ```{r setup, include=FALSE}
-library(edgeR,dplyr,reader)
-setwd("~/RNAseq/feat/")
+library(edgeR)
+setwd("~/RNAseq/featureCounts/")
 
 x <- list()
 temp = list.files(pattern="*.txt", full.names = TRUE)
@@ -24,7 +24,8 @@ z <- data.frame(x[2])
 
 
 ```{r}
-files <- c( "1_S1_name-test-count.txt", "2_S2-name-count.txt",
+setwd("~/RNAseq/featureCounts/")
+files <- c("1_S1_name-test-count.txt", "2_S2-name-count.txt",
 "3_S3-name-count.txt", "4_S4-name-count.txt",
 "5_S5-name-count.txt", "6_S6-name-count.txt",
 "7_S7-name-count.txt", "8_S8-name-count.txt", "9_S9-name-count.txt", "10_S10-name-count.txt")
@@ -48,7 +49,7 @@ d <- estimateTagwiseDisp(d)
 et <- exactTest(d)
 top_pair <- data.frame(topTags(et, n=20))
 top_pair$names <- rownames(top_pair)
-write_csv(top_pair, "top_pair.csv")
+#write_csv(top_pair, "top_pair.csv")
 #logcpm <- cpm(d, log=TRUE)
 ```
 
@@ -66,7 +67,6 @@ abline(h=0, col="red", lty=2, lwd=2)
 ```
 
 ```{r}
-
 go_glm <- goana(lrt.edgeR, species = "Hs")
 topGO(go_glm, n=10)
 ```

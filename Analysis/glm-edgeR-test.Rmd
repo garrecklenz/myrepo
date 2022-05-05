@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r edgeR, fig.align='center'}
-setwd("~/RNAseq/feat/")
+setwd("~/RNAseq/featureCounts/")
 dge <- readDGE(fg, sep = '\t', columns = c(1,7), header = TRUE, skip = 1)
 # Trim no counts
 keep2 <- filterByExpr(dge)
@@ -42,10 +42,10 @@ lrt.edgeR <- glmLRT(fit.edgeR, contrast=contrasts.edgeR)
 edgeR_results <- lrt.edgeR$table
 p_sort <- edgeR_results[order(edgeR_results$PValue),] 
 p_sort$names <- row.names(p_sort)
-write_csv(p_sort, "top_glm.csv")
-#sig.edgeR <- decideTestsDGE(lrt.edgeR, p.value = p.threshold, lfc = 0)
+#write_csv(p_sort, "top_glm.csv")
+sig.edgeR <- decideTestsDGE(lrt.edgeR, adjust.method="BH", p.value = p.threshold)
 #summary(sig.edgeR)
-#genes.edgeR <- row.names(edgeR_results)[which(sig.edgeR != 0)]
+genes.edgeR <- row.names(edgeR_results)[which(sig.edgeR != 0)]
 ```
 
 ```{r}

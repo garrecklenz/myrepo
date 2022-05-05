@@ -1,0 +1,44 @@
+---
+title: "deseq2test"
+output: html_document
+date: '2022-05-04'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DESeq2)
+setwd("~/RNAseq/seq_align/050322/Analysis/")
+#files <- list.files(".")
+files <- c( "1_S1_Reads.out.tab", "2_S2_Reads.out.tab",
+"3_S3_Reads.out.tab", "4_S4_Reads.out.tab",
+"5_S5_Reads.out.tab", "6_S6_Reads.out.tab",
+"7_S7_Reads.out.tab", "8_S8_Reads.out.tab", "9_S9_Reads.out.tab", "10_S10_Reads.out.tab")
+design <- c(rep("A",5), rep("B",5))
+all <- data.frame(sampleName = files, fileName = files, design = design)
+dds <- DESeqDataSetFromHTSeqCount(sampleTable = all, design= ~ design)
+dds <- DESeq(dds)
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+resultsNames(dds)
+#contrast <- list("B", "A")
+res <- results(dds, contrast = c("design", "B", "A"))
+#res <- results(dds, contrast = c("design", "B", "A"))
+p.threshold <- 0.05
+res$threshold <- as.logical(res$pvalue < p.threshold)
+genes.deseq <- row.names(res)[which(res$threshold)]
+print(genes.deseq)
+all_genes <- data.frame(res$pvalue, row.names(res))
+all_genes <- na.omit(all_genes)
+p_sort <- all_genes[order(all_genes$res.pvalue),]
+write.csv(p_sort, "top_htseq.csv")
+```
+
+
+
+
+```{r}
+library(gplots)
+plotDispEsts(dds)
+venn(list(edgeR = genes.edgeR, salmon = results$ensembl_gene_id))
+```
+

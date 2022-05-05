@@ -6,11 +6,12 @@ date: '2022-05-02'
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("~/RNAseq/salmon/Run2/quants_boot/")
+setwd("~/RNAseq/quants_boot/")
 library(tximport)
 library(tximeta)
 library(ensembldb)
 library(EnsDb.Hsapiens.v86)
+library(org.Hs.eg.db)
 
 ## Making a "short cut"
 edb <- ensemblVersion(EnsDb.Hsapiens.v86)
@@ -19,12 +20,15 @@ edb
 ```
 
 ```{r}
+setwd("~/RNAseq/quants_boot/")
 s_files <- c(list.dirs(path = ".", full.names = FALSE, recursive = FALSE))
-s <- catchSalmon(paths = s_files)
+s_manual <- c("1_S1_quant", "2_S2_quant", "3_S3_quant", "4_S4_quant", "5_S5_quant", "6_S6_quant", "7_S7_quant", "8_S8_quant", "9_S9_quant", "10_S10_quant")
+s <- catchSalmon(paths = s_manual)
 
 ```
 
 ```{r}
+setwd("~/RNAseq/quants_boot/")
 s_dge <- DGEList(counts=s$counts, genes=s$annotation, remove.zeros = TRUE, group = new)
 keep_s <- filterByExpr(s_dge)
 s_dge <- s_dge[keep_s, , keep.lib.sizes=FALSE]
@@ -33,14 +37,33 @@ s_dge <- estimateDisp(s_dge)
 s_dge <- estimateCommonDisp(s_dge)
 s_dge <- estimateTagwiseDisp(s_dge)
 et_s <- exactTest(s_dge)
-top_s <- data.frame(topTags(et_s, n=100))
+top_s <- data.frame(topTags(et_s, n=123))
 top_s$names <- row.names(top_s)
+
+s_names <- top_s$names
 write.csv(top_s, "top_salmon.csv")
 ```
 
 ```{r}
-fit_salmon <- glmFit(s_dge, design.mat)
-lrt_salmon <- glmLRT(fit_salmon)
-go_salmon <- goana(lrt_salmon)
+#fit_salmon <- glmFit(s_dge, design.mat)
+#lrt_salmon <- glmLRT(fit_salmon)
+#go_salmon <- goana(lrt_salmon)
+setwd("~/RNAseq/quants_boot/")
+library(biomaRt)
+library(stringi)
+s_names <- top_s$names
+s_names1 <- stri_sub(s_names, 1, -3)
+s_names1 <- data.frame(s_names1)
+s_names2 <- stri_sub(s_names, 1, -4)
+s_names2 <- data.frame(s_names2)
+mart <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
+results1 <- getBM(attributes = c("ensembl_gene_id", "ensembl_transcript_id", "external_gene_name"),
+                 filters = "ensembl_transcript_id", values = s_names1,
+                 mart = mart)
+results2 <- getBM(attributes = c("ensembl_gene_id", "ensembl_transcript_id", "external_gene_name"),
+                 filters = "ensembl_transcript_id", values = s_names2,
+                 mart = mart)
+results <- rbind(results1, results2)
+write.csv(results, "geneID_salmon.csv")
 ```
 
