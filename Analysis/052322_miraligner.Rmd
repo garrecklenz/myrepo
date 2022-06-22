@@ -1,0 +1,250 @@
+---
+title: "052322_miraligner_analysis"
+output: html_document
+date: '2022-05-23'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup, include=FALSE}
+setwd("/Volumes/Gak/seqcluster/miraligner/mirna_files")
+library(isomiRs)
+library(magrittr)
+control <- "control"
+stroke <- "stroke"
+de <- data.frame(row.names = c("1","3","4","8","9","13","14","18","19","20","21","22","23","24","30","33","34","35","36","37","38","41","43","44","47","48","50","53","54","55","56","57","61","62","63","65","69","70","72","73","74","76","78","79","81","84","86","87","88","91","92","93","94","95","96","97","98","107","110","113","115","117","118","121","122","124","126","131","133","134","135","137","140","141","142"), condition = c(control,control,control,stroke,control,control,stroke,control,stroke,control,control,control,control,control,stroke,stroke,stroke,stroke,stroke,stroke,stroke,stroke,control,stroke,control,control,stroke,control,control,stroke,control,control,control,stroke, control,control,control,stroke,stroke,stroke,control,stroke,control,stroke,stroke,control,stroke,control,control,control,control,stroke,stroke,stroke,stroke,stroke,control,control,control,control,stroke,stroke,control,control,control,stroke,control,stroke,stroke,control,control,stroke,control,control,control), stringsAsFactors = TRUE)
+
+fn_list <- list.files(path = ".", pattern="mirna", full.names = TRUE)
+
+#ids <- IsomirDataSeqFromFiles(fn_list, coldata = de)
+ids2 <- IsomirDataSeqFromFiles(fn_list, coldata = de, minHits = 10)
+
+```
+
+
+```{r}
+library(gplots)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(VennDiagram)
+library(rstatix)
+library(ggpubr)
+library(ggprism)
+
+#tmp <- venn(list("3'nucleotides" = genes.deseq, mature_miRs = genes.deseq_mat), intersections = TRUE)
+
+#five_end <- isoCounts(ids, iso5 = TRUE)
+all_iso <- isoCounts(ids, all = TRUE)
+t <- isoCounts(ids)
+
+
+#ids <- isoPlot(ids, type="all")
+isoTop(ids, top = 10)
+t <- isoNorm(ids, formula = ~condition)
+ 
+mir190_P1_5p_t <- isoSelect(t, mirna = "Hsa-Mir-130-P2b_3p", minc = 1)
+pls.ids = isoPLSDA(t, "condition", nperm = 2)
+isoPLSDAplot(pls.ids)
+
+#head(all_iso@metadata[["rawData"]])
+```
+
+```{r}
+tt <- data.frame(mir190_P1_5p_t@listData, row.names = mir190_P1_5p_t@rownames)
+tt <- t(tt)
+tt <- data.frame(tt)
+tt$condition <- de$condition
+
+tt_1 <- data.frame(counts = tt$Hsa.Mir.130.P2b_3p.iso_3p.cat, condition = tt$condition)
+tt_1$isomiR <- rep(colnames(tt)[1],nrow(tt_1))
+stat_1 <- tt_1 %>% wilcox_test(counts ~ condition)
+sum_1 <- tt_1 %>%   
+  group_by(condition) %>% 
+  summarise(Average_counts = mean(counts)) %>% 
+  add_column(isomiR = rep(colnames(tt)[1],nrow(sum_1))) %>% 
+  mutate(d = (sum_1[1,2])/(sum_1[2,2]))
+
+dip <- function(sum_df){
+  if(sum_df[1,4] < 1){
+    print("UP")
+  } 
+  else{
+    print("DOWN")
+  } 
+} 
+
+dip(sum_1)
+
+tt_2 <- data.frame(counts = tt$Hsa.Mir.190.P1_5p.iso_3p.tg, condition = tt$condition)
+tt_2$isomiR <- rep(colnames(tt)[2],nrow(tt_2))
+sum_2 <- tt_2 %>%   
+  group_by(condition) %>% 
+  summarise(Average_counts = mean(counts)) %>% 
+  add_column(isomiR = rep(colnames(tt)[2],nrow(sum_2))) %>% 
+  mutate(d = (sum_2[1,2])/(sum_2[2,2]))
+stat_2 <- tt_2 %>% wilcox_test(counts ~ condition)
+
+tt_3 <- data.frame(counts = tt$Hsa.Mir.190.P1_5p.iso_3p.ttg, condition = tt$condition)
+tt_3$isomiR <- rep(colnames(tt)[3],nrow(tt_3))
+stat_3 <- tt_3 %>% wilcox_test(counts ~ condition)
+sum_3 <- tt_3 %>%   
+  group_by(condition) %>% 
+  summarise(Average_counts = mean(counts)) %>% 
+  add_column(isomiR = rep(colnames(tt)[3],nrow(sum_3))) %>% 
+  mutate(d = (sum_3[1,2])/(sum_3[2,2]))
+
+mmm <- rbind(sum_1, sum_2, sum_3)
+ttt <- rbind(tt_1, tt_2, tt_3)
+
+stat_all <- tt_1 %>% 
+  group_by(isomiR) %>% 
+  wilcox_test(counts ~ condition) %>% 
+  adjust_pvalue() %>% 
+  add_significance("p.adj") %>% 
+  add_xy_position(x = "isomiR")
+
+ggboxplot(tt_1, x = "condition", y = "counts", fill = "condition", facet.by = "isomiR") +
+  add_pvalue(stat_all, label = "p.adj")
+
+ggplot(mmm, aes(condition, Average_counts)) + 
+  geom_point() + 
+  geom_line(aes(group=isomiR, colour = isomiR))
+
+```
+
+```{r}
+library(tidyverse)
+library(gapminder)
+theme_set(theme_bw(16))
+
+df = gapminder %>%
+  filter(year %in% c(1952,2007)) %>%
+  filter(continent %in% c("Asia")) %>%
+  select(country,year,lifeExp, gdpPercap)%>%
+  mutate(paired = rep(1:(n()/2),each=2),
+         year=factor(year))
+
+	
+df %>% head()
+```
+
+
+
+```{r}
+## venn diagram comparing samples with 5' mods, 3' mods, and substitutions
+
+mism_genes <- data.frame(all_iso@metadata[["rawData"]]$mism) %>% 
+  mutate(all_iso@metadata[["rawData"]]$mir) %>% 
+  rename(mir = `all_iso@metadata[["rawData"]]$mir`) %>% 
+  rename(mism = all_iso.metadata...rawData....mism) %>% 
+  filter(mism != "0")
+
+mism_gene_list <- c(mism_genes$mir)
+
+t5_genes <- data.frame(all_iso@metadata[["rawData"]]$t5) %>% 
+  mutate(all_iso@metadata[["rawData"]]$mir) %>% 
+  rename(mir = `all_iso@metadata[["rawData"]]$mir`) %>% 
+  rename(t5 = all_iso.metadata...rawData....t5) %>% 
+  filter(t5 != "0")
+
+t5_gene_list <- c(t5_genes$mir)
+
+t3_genes <- data.frame(all_iso@metadata[["rawData"]]$t3) %>% 
+  mutate(all_iso@metadata[["rawData"]]$mir) %>% 
+  rename(mir = `all_iso@metadata[["rawData"]]$mir`) %>% 
+  rename(t3 = all_iso.metadata...rawData....t3) %>% 
+  filter(t3 != "0")
+
+t3_gene_list <- c(t3_genes$mir)
+
+tmp <- venn(list("5' changes" = t5_gene_list, "3' changes" = t3_gene_list, "nucleotide substitutions" = mism_gene_list), intersections = TRUE)
+```
+
+```{r}
+library(ggplot2)
+## counting % of 5' and 3' mods are additions v deletions
+
+five_upper <- grep("^[A-Z]+$", t5_genes$t5 , value = TRUE)
+five_lower <- grep("^[a-z]+$", t5_genes$t5 , value = TRUE)
+three_upper <- grep("^[A-Z]+$", t3_genes$t3 , value = TRUE)
+three_lower <- grep("^[a-z]+$", t3_genes$t3 , value = TRUE)
+three_total <- (length(three_upper) + length(three_lower))
+five_total <- length(five_upper) + length(five_lower)
+five_u_per <- (length(five_upper)/five_total)*100
+five_l_per <- (length(five_lower)/five_total)*100
+three_u_per <- (length(three_upper)/three_total)*100
+three_l_per <- (length(three_lower)/three_total)*100
+f_u <- rep("addition", length(five_upper))
+f_l <- rep("deletion", length(five_lower))
+t_u <- rep("addition", length(three_upper))
+t_l <- rep("deletion", length(three_lower))
+t_t <- rep("3'", (length(three_upper) + length(three_lower)))
+f_t <- rep("5'", length(five_upper) + length(five_lower))
+
+
+bar_df <- data.frame(change = c(f_u, f_l, t_u, t_l), end = c(f_t, t_t))
+
+ggplot(bar_df,aes(end,fill=change)) +
+  geom_bar(position = "fill")
+
+five_upper_one <- grep("^[A-Z]{1}$", t5_genes$t5 , value = TRUE)
+five_upper_two <- grep("^[A-Z]{2}$", t5_genes$t5 , value = TRUE)
+five_upper_three <- grep("^[A-Z]{3}$", t5_genes$t5 , value = TRUE)
+five_lower_one <- grep("^[a-z]{1}$", t5_genes$t5 , value = TRUE)
+five_lower_two <- grep("^[a-z]{2}$", t5_genes$t5 , value = TRUE)
+five_lower_three <- grep("^[a-z]{3}$", t5_genes$t5 , value = TRUE)
+three_upper_one <- grep("^[A-Z]{1}$", t3_genes$t3 , value = TRUE)
+three_upper_two <- grep("^[A-Z]{2}$", t3_genes$t3 , value = TRUE)
+three_upper_three <- grep("^[A-Z]{3}$", t3_genes$t3 , value = TRUE)
+three_lower_one <- grep("^[a-z]{1}$", t3_genes$t3 , value = TRUE)
+three_lower_two <- grep("^[a-z]{2}$", t3_genes$t3 , value = TRUE)
+three_lower_three <- grep("^[a-z]{3}$", t3_genes$t3 , value = TRUE)
+
+f_u_1 <- rep("1", length(five_upper_one))
+f_u_2 <- rep("2", length(five_upper_two))
+f_u_3 <- rep("3", length(five_upper_three))
+f_l_1 <- rep("-1", length(five_lower_one))
+f_l_2 <- rep("-2", length(five_lower_two))
+f_l_3 <- rep("-3", length(five_lower_three))
+t_u_1 <- rep("1", length(three_upper_one))
+t_u_2 <- rep("2", length(three_upper_two))
+t_u_3 <- rep("3", length(three_upper_three))
+t_l_1 <- rep("-1", length(three_lower_one))
+t_l_2 <- rep("-2", length(three_lower_two))
+t_l_3 <- rep("-3", length(three_lower_three))
+
+bar_num_df <- data.frame(change = c(f_u_1,f_u_2,f_u_3, f_l_1, f_l_2, f_l_3, t_u_1, t_u_2, t_u_3, t_l_1, t_l_2, t_l_3), end = c(f_t, t_t))
+
+ggplot(bar_num_df,aes(end,fill=change)) +
+  geom_bar(position = "dodge")
+
+```
+
+
+```{r}
+library(DESeq2)
+de_iso <- isoDE(t, formula = ~condition, 
+  ref = T,
+  iso5 = T,
+  iso3 = T,
+  add = T,
+  snv = T,
+  seed = T,
+  all = T)
+de_iso <- DESeq(de_iso)
+res <- results(de_iso, contrast = c("condition", "control", "stroke"), lfcThreshold = .2)
+p.threshold <- 0.05
+
+res$threshold <- as.logical(res$padj < p.threshold)
+genes.deseq <- data.frame(res$log2FoldChange[which(res$threshold)],row.names(res)[which(res$threshold)])
+all_genes <- data.frame(res$padj, row.names(res))
+p_sort <- all_genes[order(all_genes$res.padj),]
+
+
+#plotCounts(de_iso, gene="Hsa-Mir-190-P1_5p;iso_3p:ttg", intgroup="condition")
+
+```
+

@@ -1,0 +1,144 @@
+---
+title: "Untitled"
+output: html_document
+date: '2022-05-27'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(isomiRs)
+library(DESeq2)
+library(gplots)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(VennDiagram)
+library(rstatix)
+library(ggpubr)
+library(ggprism)
+library(rlist)
+library(limma)
+
+```
+
+
+```{r}
+data(mirData)
+design(mirData) <- formula(~1)
+og <- data(mirData)
+data()
+
+```
+
+```{r}
+ isomiR_analysis <- function(base){
+  isoSelect_object <- isoSelect(t, mirna = base)
+  aa <- data.frame(isoSelect_object@listData, row.names = isoSelect_object@rownames)
+  aa <- t(aa)
+  aa <- data.frame(aa)
+  aa$condition <- de$condition
+  aaa <- list()
+  stats <- list()
+  avgs <- list()
+  for (i in 1:(ncol(aa)-1)){
+    #nam <- paste0("aa_", i)
+    nam <- data.frame(counts = aa[,i], condition = aa$condition)
+    nam$isomiR <- rep(colnames(aa)[i],nrow(nam))
+    #nam_s <- nam %>% wilcox_test(counts ~ condition)
+    nam_a <- nam %>%   
+      group_by(condition) %>% 
+      summarise(Average_counts = mean(counts))
+    nam_a$isomiR <- rep(colnames(aa)[i],2)
+    
+    #b <- 
+    
+    s <- (nam_a[1,2])/(nam_a[2,2])
+    if(s < 1){s<-("UP")} 
+    else{s<-("DOWN")} 
+    
+    stats[[i]] <- s
+    aaa[[i]] <- nam
+    #stats[[i]] <- nam_s
+    avgs[[i]] <- nam_a
+  }
+  
+  e <- list()
+  for(i in length(stats)){
+    if(stats[[1]]==stats[[i]]){e <- "no"}
+    else{e <- "yes"}
+    e[[i]]<- e
+  }
+   
+  mm <- list.rbind(aaa)
+  aa2 <- list.rbind(avgs)
+    
+  stat_all <- mm %>% 
+      group_by(isomiR) %>% 
+      wilcox_test(counts ~ condition) %>% 
+      adjust_pvalue() %>% 
+      add_significance("p.adj") %>% 
+      add_xy_position(x = "isomiR")
+   
+  plot1 <- ggboxplot(mm, x = "condition", y = "counts", fill = "condition", facet.by = "isomiR") +
+      add_pvalue(stat_all, label = "p.adj") +
+      geom_jitter()
+
+  plot2 <- ggplot(aa2, aes(condition, Average_counts)) + 
+      geom_point() + 
+      geom_line(aes(group=isomiR, colour = isomiR))
+
+  
+  #return(list(mm, aa2, e))
+  #print(aa2)
+  print(plot1)
+  print(plot2)
+  #print(stats)
+  #print(e)
+}
+
+
+aa_test <- isomiR_analysis(new2[[51]])
+
+
+all_test <- lapply(new2, isomiR_analysis)
+
+b <- list()
+for (i in 1:length(all_test)){
+  a <- all_test[[i]][[2]][3]
+  b[[i]] <- a
+}
+b <- unlist(b)
+b <- as.vector(b) %>% 
+  unique()
+
+
+```
+
+```{r}
+new<-strsplit2(genes.deseq$row.names.res..which.res.threshold.., split=";")
+new2 <- as.list(new[,1]) %>% 
+  unique()
+new2[[51]] <- NULL
+new2[[50]] <- NULL
+new2[[8]] <- NULL
+
+#n <- as.vector(genes.deseq$row.names.res..which.res.threshold..)
+
+bb <- list()
+for (i in 1:length(new2)){
+  aa <- data.frame(res@listData[["log2FoldChange"]], res@rownames, res@listData[["padj"]], res@listData[["pvalue"]])
+  aa <- data.frame(aa)
+  d <- dplyr::filter(aa, grepl(new2[i], res.rownames))
+  bb[[i]] <- d
+}
+
+
+aa <- data.frame(res@listData[["log2FoldChange"]], res@rownames)
+aa <- data.frame(aa)
+dplyr::filter(aa, grepl(base, res.rownames))
+  #filter(row.names(aa) %in% b)
+
+
+
+```
+

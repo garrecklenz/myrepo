@@ -1,0 +1,84 @@
+---
+title: "051122_mature"
+output: html_document
+date: '2022-05-11'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(biomaRt)
+library(tximport)
+library(tximeta)
+library(GenomicFeatures)
+library(DESeq2)
+```
+
+
+```{r}
+setwd("/Volumes/Gak/051122/quants_mature/")
+
+files <- list.files(path = "/Volumes/Gak/processed/data/")
+
+## the path has to be written out in full, path = "." does not work here
+files <- paste0(files, "_quant")
+mat_files <- file.path(path = "/Volumes/Gak/051122/quants_mature/", files, "quant.sf")
+
+
+## annotate the samples using paste0
+names(mat_files) <- paste0("S", 1:75)
+
+## make a txDb using the .gtf file that was used in the salmon run -- this takes a while, just generate once!
+txdb <- makeTxDbFromGFF("/Volumes/Gak/processed/hsa.gff")
+
+k <- keys(txdb, keytype = "TXNAME")
+tx2gene <- select(txdb, k, "TXNAME", "TXNAME")
+## This .gff file doesn't have any other annotations than TXNAME so you need to duplicate it in this dataframe so the tximport recognizes the names of the isomiRs
+tx2gene[,2] <- tx2gene[,1]
+
+## ignoreTxVersion truncates the IDs from the gtf to match the general transcript IDs 
+txi_salmon_mat <- tximport(mat_files, type = "salmon",ignoreTxVersion = FALSE, txOut = TRUE)
+```
+
+
+```{r}
+control <- "control"
+stroke <- "stroke"
+conditions_all <- c(control,control,control,stroke,control,control,stroke,control,stroke,control,control,control,control,control,stroke,stroke,stroke,stroke,stroke,stroke,stroke,stroke,control,stroke,control,control,stroke,control,control,stroke,control,control,control,stroke, control,control,control,stroke,stroke,stroke,control,stroke,control,stroke,stroke,control,stroke,control,control,control,control,stroke,stroke,stroke,stroke,stroke,control,control,control,control,stroke,stroke,control,control,control,stroke,control,stroke,stroke,control,control,stroke,control,control,control)
+salmonTable <- data.frame(condition = conditions_all)
+#rownames(salmonTable) <- colnames(txi_salmon$counts)
+dd_salmon_mat <- DESeqDataSetFromTximport(txi_salmon_mat, salmonTable, ~condition)
+dd_salmon_mat <- DESeq(dd_salmon_mat)
+keep <- rowSums(counts(dd_salmon_mat)) >= 10
+dd_salmon_mat <- dd_salmon_mat[keep,]
+res_sal_mat <- results(dd_salmon_mat, contrast = c("condition", "control", "stroke"), lfcThreshold = 0.2)
+p.threshold <- 0.3
+
+res_sal_mat$threshold <- as.logical(res_sal_mat$padj < p.threshold)
+genes.deseq_mat <- row.names(res_sal_mat)[which(res_sal_mat$threshold)]
+#print(genes.deseq_mat)
+all_genes_sal_mat <- data.frame(res_sal_mat$padj, row.names(res_sal_mat))
+p_sort_sal_mat <- all_genes_sal_mat[order(all_genes_sal_mat$res_sal_mat.padj),]
+
+#plotDispEsts(dd_salmon_mat)
+resLFC_apeglm_mat <- lfcShrink(dd_salmon_mat, coef="condition_stroke_vs_control", type="apeglm")
+plotMA(resLFC_apeglm_mat, ylim=c(-2,2))
+#resLFC_normal_mat <- lfcShrink(dd_salmon_mat, coef="condition_stroke_vs_control", type="normal")
+#plotMA(resLFC_normal_mat, ylim=c(-2,2))
+#plot(res_sal_mat$log2FoldChange, -log10(res_sal_mat$padj))
+
+plotCounts(dd_salmon_mat, gene=which.min(res_sal_mat$padj), intgroup="condition")
+plotCounts(dd_salmon_mat, gene="Hsa-Mir-190-P3_5p", intgroup="condition")
+plotCounts(dd_salmon_mat, gene="Hsa-Mir-190-P1_5p", intgroup="condition")
+plotCounts(dd_salmon_mat, gene="Hsa-Mir-191_5p", intgroup="condition")
+plotCounts(dd_salmon_mat, gene="Hsa-Mir-3942_3p", intgroup="condition")
+
+```
+
+```{r}
+library(gplots)
+
+tmp <- venn(list(all_miRs = genes.deseq, mature_miRs = genes.deseq_mat), intersections = TRUE)
+attr(tmp, "intersection")
+#print(genes.deseq)
+#print(genes.deseq_mat)
+```
